@@ -13,21 +13,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
-    // Get user profile
-    $headers = getallheaders();
-    $authHeader = $headers['Authorization'] ?? '';
+    // Get user profile - accept user ID from query parameter
+    $user_id = $_GET['user_id'] ?? '';
     
-    if (empty($authHeader) || !str_starts_with($authHeader, 'Bearer ')) {
-        http_response_code(401);
-        echo json_encode(['success' => false, 'message' => 'Authorization token required']);
+    if (empty($user_id)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'User ID is required']);
         exit;
     }
     
-    $token = substr($authHeader, 7); // Remove 'Bearer ' prefix
-    
-    // Verify token and get user
+    // Get user by ID
     $stmt = $conn->prepare("SELECT id, name, email, created_at FROM users WHERE id = ?");
-    $stmt->bind_param("s", $token);
+    $stmt->bind_param("s", $user_id);
     $stmt->execute();
     $result = $stmt->get_result();
     
@@ -43,24 +40,12 @@ if ($method === 'GET') {
             ]
         ]);
     } else {
-        http_response_code(401);
-        echo json_encode(['success' => false, 'message' => 'Invalid token']);
+        http_response_code(404);
+        echo json_encode(['success' => false, 'message' => 'User not found']);
     }
     
 } elseif ($method === 'PUT') {
-    // Update user profile
-    $headers = getallheaders();
-    $authHeader = $headers['Authorization'] ?? '';
-    
-    if (empty($authHeader) || !str_starts_with($authHeader, 'Bearer ')) {
-        http_response_code(401);
-        echo json_encode(['success' => false, 'message' => 'Authorization token required']);
-        exit;
-    }
-    
-    $token = substr($authHeader, 7); // Remove 'Bearer ' prefix
-    
-    // Get JSON input
+    // Update user profile - accept user ID from request body
     $input = json_decode(file_get_contents('php://input'), true);
     
     if (!$input) {
@@ -69,12 +54,13 @@ if ($method === 'GET') {
         exit;
     }
     
+    $user_id = $input['user_id'] ?? '';
     $name = $input['name'] ?? '';
     $email = $input['email'] ?? '';
     
-    if (empty($name) || empty($email)) {
+    if (empty($user_id) || empty($name) || empty($email)) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Name and email are required']);
+        echo json_encode(['success' => false, 'message' => 'User ID, name and email are required']);
         exit;
     }
     
@@ -87,7 +73,7 @@ if ($method === 'GET') {
     
     // Check if email already exists for another user
     $checkStmt = $conn->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
-    $checkStmt->bind_param("ss", $email, $token);
+    $checkStmt->bind_param("ss", $email, $user_id);
     $checkStmt->execute();
     $checkResult = $checkStmt->get_result();
     
@@ -99,12 +85,12 @@ if ($method === 'GET') {
     
     // Update user profile
     $updateStmt = $conn->prepare("UPDATE users SET name = ?, email = ? WHERE id = ?");
-    $updateStmt->bind_param("sss", $name, $email, $token);
+    $updateStmt->bind_param("sss", $name, $email, $user_id);
     
     if ($updateStmt->execute()) {
         // Get updated user data
         $getStmt = $conn->prepare("SELECT id, name, email, created_at FROM users WHERE id = ?");
-        $getStmt->bind_param("s", $token);
+        $getStmt->bind_param("s", $user_id);
         $getStmt->execute();
         $getResult = $getStmt->get_result();
         
