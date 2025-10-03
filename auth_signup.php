@@ -1,6 +1,6 @@
 <?php
 // Signup API endpoint
-require_once 'config/database.php';
+require_once 'config/db.php';
 require_once 'includes/response.php';
 
 // Set content type to JSON
